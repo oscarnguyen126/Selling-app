@@ -1,8 +1,78 @@
 from django.contrib.auth.models import User
 from rest_framework.test import APITestCase
 from rest_framework import status
-from .models import Product
+from .models import Product, Category
 import uuid
+
+
+class CategoryAPITestCase(APITestCase):
+
+    def setUp(self):
+        # Create a test user
+        self.user = User.objects.create_user(username='testuser', password='password123')
+        self.client.login(username='testuser', password='password123')
+        
+        # Create a sample category
+        self.category = Category.objects.create(
+            uuid=uuid.uuid4(),
+            name="Electronics",
+            description="All kinds of electronic products"
+        )
+        
+        # Define URLs
+        self.category_list_url = '/api/products/categories/'
+        self.category_detail_url = f'/api/products/categories/{self.category.uuid}/'
+        
+        # Obtain token for authenticated requests
+        response = self.client.post('/api/token/', {'username': 'testuser', 'password': 'password123'})
+        self.token = response.data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
+
+    def test_get_category_list(self):
+        response = self.client.get(self.category_list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(len(response.data), 0)
+        self.assertEqual(response.data[0]['name'], "Electronics")
+
+    def test_create_category(self):
+        data = {
+            'name': 'Books',
+            'description': 'Various kinds of books'
+        }
+        response = self.client.post(self.category_list_url, data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], 'Books')
+
+    def test_get_category_detail(self):
+        response = self.client.get(self.category_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Electronics')
+
+    def test_update_category(self):
+        data = {
+            'name': 'Updated Electronics',
+            'description': 'Updated description for electronics'
+        }
+        response = self.client.put(self.category_detail_url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Updated Electronics')
+
+    def test_delete_category(self):
+        """Test deleting a category."""
+        response = self.client.delete(self.category_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Category.objects.filter(uuid=self.category.uuid).exists())
+
+    def test_unauthenticated_access(self):
+        """Test that unauthenticated users cannot create categories."""
+        self.client.credentials()  # Remove authentication
+        data = {
+            'name': 'Unauthorized Category',
+            'description': 'Should fail without authentication'
+        }
+        response = self.client.post(self.category_list_url, data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
 
 class ProductAPITestCase(APITestCase):
 
